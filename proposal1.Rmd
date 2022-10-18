@@ -1,0 +1,88 @@
+---
+title: "project 1"
+date: "2022-10-18"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE, message = FALSE}
+## label the data
+library("labelled") 
+library('codebook')
+library("readr")
+library('tidyverse')
+library('table1')
+data <- read_csv("merged.csv")
+
+# turn categorical variables to factors
+## cab type
+data$cab_type_fac <- factor(data$cab_type, label = c("Lyft", 'Uber'))
+label(data$cab_type_fac) <- "cab company"
+## car type
+data$name_fac <- factor(data$name) # 13 different type
+
+# turn epoch time to datetime
+data$time <- as.POSIXct(as.numeric(data$time_stamp), 
+                              origin='1970-01-01', tz="UTC")
+## extract hour time
+data$hour <- as.numeric(format(data$time,'%H'))
+
+# rain
+# fill na value in raining variable
+data[["rain"]][is.na(data[["rain"]])] <- 0
+# turn rain into categorical variable
+data$rain_fac <- data$rain
+data$rain_fac[data$rain != 0] <- 1
+data$rain_fac <- factor(data$rain_fac, label = c("no rain", "rain"))
+
+# add label
+var_label(data$distance) <- "distance(miles)"
+var_label(data$cab_type) <- "cab type"
+var_label(data$time_stamp) <- "time stamp"
+var_label(data$destination) <- "destination"
+var_label(data$source) <- "source"
+var_label(data$destination) <-"destination"
+var_label(data$price) <- "price(usd)"
+var_label(data$surge_multiplier) <- "surge multiplier"
+var_label(data$id)<- "id"
+var_label(data$product_id) <- "product_id"
+var_label(data$name) <-"name"
+var_label(data$temp) <- "temp"
+var_label(data$clouds) <- "clouds"
+var_label(data$pressure) <- "pressure"
+var_label(data$rain) <- "rain"
+var_label(data$humidity) <- "humidity"
+var_label(data$wind) <- "wind"
+label(data$cab_type_fac) <- "cab company"
+label(data$rain_fac)<-"rain"
+label(data$name_fac) <- "car type"
+
+# add descriptions
+attributes(data$distance)$Descriptions <- "Distance between source and destination(miles)."
+attributes(data$cab_type)$Descriptions <- "Cab type: Uber or Lyft"
+attributes(data$time_stamp)$Descriptions <- "epoch time when data was queried"
+attributes(data$destination)$Descriptions <- "destination district of the ride"
+attributes(data$source)$Descriptions <- "the starting point of the ride"
+attributes(data$price)$Descriptions <- "price estimate for the ride in USD"
+attributes(data$surge_multiplier)$Descriptions <-"the multiplier by which price was increased, default 1"
+attributes(data$id)$Descriptions <- "unique identifier for the ride"
+attributes(data$product_id)$Descriptions <-"uber/lyft identifier for cab-type"
+
+```
+
+```{r, echo = FALSE}
+# table 1(weather, time, distance, name
+table1(~ price + distance + hour + rain_fac + name_fac | cab_type, data=data, align = 'center'
+       , font.size = 8)
+```
+
+```{r, include = FALSE}
+# drop rows with NA values in price observation
+data2 <- data %>% drop_na(price)
+save(data2,file="clean_data.csv")
+
+```
