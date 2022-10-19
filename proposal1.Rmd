@@ -1,0 +1,130 @@
+---
+title: "project 1"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE, message = FALSE}
+## label the data
+library("labelled") 
+library('codebook')
+library("readr")
+library('tidyverse')
+library('table1')
+data <- read_csv("merged.csv")
+
+# turn categorical variables to factors
+## cab type
+data$cab_type_fac <- factor(data$cab_type, label = c("Lyft", 'Uber'))
+label(data$cab_type_fac) <- "cab company"
+## car type
+## replace car model type
+data$car_model<-replace(data$name, (data$name %in% c("Lyft", "UberX", "Taxi")), "small car")
+data$car_model <-replace(data$car_model, (data$car_model %in% c("Lux", "Lux Black", "Black")), "small+ car")
+data$car_model <-replace(data$car_model, (data$car_model %in% c("Lyft XL", "UberXL", "WAV")), "large car")
+data$car_model <-replace(data$car_model, (data$car_model %in% c("Lux Black XL", "Black SUV")), "large+ car")
+data$car_model <-replace(data$car_model, (data$car_model %in% c("Shared", "UberPool")), "car pool")
+data$car_model <- factor(data$car_model)
+
+# source factor
+
+data$source_fac <- factor(data$source)
+
+# turn epoch time to datetime
+data$time <- as.POSIXct(as.numeric(data$time_stamp), 
+                              origin='1970-01-01', tz="UTC")
+## extract hour time
+data$hour <- as.numeric(format(data$time,'%H'))
+## transform 3 hours into a group
+data$hour_interval <- cut(data$hour, breaks = c(-1, 2, 5, 8, 11, 14, 17, 20, 23), include.lowest = TRUE, 
+                     labels = c("0-2", "3-5", "6-8", "9-11", "12-14","15-17", "18-20", "21-23"))
+
+                                         
+
+
+# rain
+# fill na value in raining variable
+data[["rain"]][is.na(data[["rain"]])] <- 0
+# turn rain into categorical variable
+data$rain_fac <- data$rain
+data$rain_fac[data$rain != 0] <- 1
+data$rain_fac <- factor(data$rain_fac, label = c("no rain", "rain"))
+
+# add label
+var_label(data$distance) <- "distance(miles)"
+var_label(data$cab_type) <- "cab type"
+var_label(data$time_stamp) <- "time stamp"
+var_label(data$destination) <- "destination"
+var_label(data$source) <- "source"
+var_label(data$destination) <-"destination"
+var_label(data$price) <- "price(usd)"
+var_label(data$surge_multiplier) <- "surge multiplier"
+var_label(data$id)<- "id"
+var_label(data$product_id) <- "product_id"
+var_label(data$name) <-"name"
+var_label(data$temp) <- "temp"
+var_label(data$clouds) <- "clouds"
+var_label(data$pressure) <- "pressure"
+var_label(data$rain) <- "rain"
+var_label(data$humidity) <- "humidity"
+var_label(data$wind) <- "wind"
+label(data$cab_type_fac) <- "cab company"
+label(data$rain_fac)<-"rain"
+label(data$car_model) <- "car type"
+label(data$hour_interval) <- "hour interval(24 hrs)"
+# add descriptions
+attributes(data$time_stamp)$Descriptions <- "epoch time when data was queried"
+attributes(data$destination)$Descriptions <- "destination district of the ride"
+attributes(data$source)$Descriptions <- "the starting point of the ride"
+
+attributes(data$price)$Descriptions <- "price estimate for the ride in USD"
+attributes(data$distance)$Descriptions <- "Distance between source and destination (miles)."
+attributes(data$hour_interval)$Descriptions <- "The time of the day represented by hour interval(24 hours)"
+attributes(data$rain_fac)$Descriptions<- "Rain stauts: rain or no rain"
+attributes(data$cab_type)$Descriptions <- "Cab type: Uber or Lyft"
+attributes(data$car_model)$Descriptions <- "Car type: small, small+ (small pricy), large, large+ (large pricy), carpool"
+attributes(data$surge_multiplier)$Descriptions <-"the multiplier by which price was increased, default 1"
+attributes(data$id)$Descriptions <- "unique identifier for the ride"
+attributes(data$product_id)$Descriptions <-"uber/lyft identifier for cab-type"
+
+```
+
+```{r codebook, include = FALSE, message = FALSE, results = "asis"}
+library("stargazer")
+data_code = data[,c('price', 'distance', 'hour_interval', 'source', 'rain_fac', 'car_model', 'cab_type')]
+codebook <- map_df(data_code, function(x) attributes(x)$Descriptions) %>% 
+  gather(key = Variable, value = Descriptions)
+cb = stargazer(codebook,
+          summary = FALSE,
+          title = ("Codebook"), header = FALSE)
+cb = sub('^.+\\caption.+$','', cb)
+
+```
+# Codebook
+```{r, echo = FALSE, results = "asis"}
+cat(cb, sep='\n')
+```
+
+
+# Data Overview
+**Table 1** shows the descriptive statistics of this datasets. In this dataset, there are 693071 data of cab ride, in which 30748 of them are Lyft rides and 385663 are Uber rides. There are 55095 data having missing values for prices and these data would be excluded for our analysis in this project. **Table 1. ** shows that the mean and median ride price of Lyft are higher than that of Uber while the mean distance of the rider is the same for Uber and Lyft. Car types for most lyft rides are small+ cars while car types for most Uber rides are small and large car. In addition, most rides in this dataset (88.1%) did not happen on a rainy day.  Last, rides in this dataset distributed roughly equally across different hour intervals.
+
+```{r, echo = FALSE}
+# table 1(weather, time, distance, name
+table1(~ price + distance + hour_interval + rain_fac + car_model | cab_type, data=data, align = 'center'
+       , font.size = 8)
+```
+```{r, include = FALSE}
+# drop rows with NA values in price observation
+data2 <- data %>% drop_na(price)
+data2 <- data2[ , -which(names(data2) %in% c("timestamp","cab_type", "destination", "surge_multiplier", "id", "product_id",
+                                             "name", "temp", "clouds", "pressure", "rain", "humidity", "wind"))]
+data2 <- data2[ , -1]
+write.csv(data2,"clean_data2.csv", row.names = FALSE)
+
+```
+**Table 1.**
